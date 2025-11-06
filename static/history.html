@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Istoric Analize - AI Resume Analyzer</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 20px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07); overflow: hidden; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 20px 30px; border-bottom: 1px solid #eef0f2; }
+        header h1 { font-size: 24px; color: #007bff; margin: 0; }
+        header .header-links a { color: #007bff; text-decoration: none; font-weight: 600; margin-left: 20px; }
+        header .header-links a#logout-link { color: #dc3545; }
+        .content { padding: 30px; }
+        h2 { font-size: 20px; color: #333; margin-bottom: 20px; }
+        #history-list { list-style-type: none; padding: 0; }
+        .history-item {
+            display: flex;
+            flex-wrap: wrap; /* Pentru ecrane mici */
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border: 1px solid #eef0f2;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background-color: #fdfdfd;
+        }
+        .history-item-info { font-weight: 600; color: #333; margin-bottom: 5px; }
+        .history-item-info span { font-weight: normal; color: #6c757d; font-size: 14px; margin-left: 10px; }
+        .history-item-actions { display: flex; gap: 10px; }
+        .action-btn { background-color: #007bff; color: white; padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; text-decoration: none; transition: background-color 0.2s; }
+        .action-btn.view-btn { background-color: #6c757d; }
+        .action-btn:hover { background-color: #0056b3; }
+        .action-btn.view-btn:hover { background-color: #5a6268; }
+        
+        #status-message { margin-top: 20px; font-weight: 600; }
+        
+        /* Zona de afișare a analizei JSON */
+        #analysis-display { margin-top: 30px; border-top: 1px solid #eef0f2; padding-top: 20px; display: none; }
+        #analysis-display h3 { font-size: 18px; color: #333; }
+        #analysis-display pre { background-color: #f8f9fa; border: 1px solid #eef0f2; border-radius: 8px; padding: 20px; white-space: pre-wrap; word-wrap: break-word; font-family: "Courier New", Courier, monospace; color: #212529; max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Istoricul Analizelor</h1>
+            <div class="header-links">
+                <a href="/static/dashboard.html">Dashboard</a>
+                <a href="#" id="logout-link">Deconectează-te</a>
+            </div>
+        </header>
+
+        <div class="content">
+            <h2 id="loading-message">Se încarcă istoricul...</h2>
+            <ul id="history-list">
+                <!-- Elementele vor fi adăugate aici de JavaScript -->
+            </ul>
+            <div id="status-message"></div>
+            
+            <!-- Zona nouă pentru afișarea analizei -->
+            <div id="analysis-display">
+                <h3>Detaliu Analiză AI:</h3>
+                <pre id="analysis-json-content"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHistory();
+        });
+
+        // --- Logica de Logout ---
+        document.getElementById('logout-link').addEventListener('click', function(event) {
+            event.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/static/login.html';
+        });
+
+        const token = localStorage.getItem('access_token');
+
+        async function loadHistory() {
+            if (!token) {
+                window.location.href = '/static/login.html';
+                return;
+            }
+
+            const loadingMsg = document.getElementById('loading-message');
+            const historyList = document.getElementById('history-list');
+
+            try {
+                const response = await fetch('/api/history', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) { window.location.href = '/static/login.html'; }
+                    throw new Error('Eroare la preluarea istoricului.');
+                }
+
+                const historyData = await response.json();
+                
+                if (historyData.length === 0) {
+                    loadingMsg.textContent = 'Nu există analize salvate în istoric.';
+                } else {
+                    loadingMsg.style.display = 'none';
+                    historyList.innerHTML = ''; 
+                    
+                    historyData.forEach(item => {
+                        const li = document.createElement('li');
+                        li.className = 'history-item';
+                        
+                        const itemInfo = document.createElement('div');
+                        itemInfo.className = 'history-item-info';
+                        itemInfo.innerHTML = `${item.filename} <span>(${new Date(item.timestamp).toLocaleString('ro-RO')})</span>`;
+                        
+                        const actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'history-item-actions';
+
+                        // Butonul de vizualizare (NOU)
+                        const viewBtn = document.createElement('button');
+                        viewBtn.className = 'action-btn view-btn';
+                        viewBtn.textContent = 'Vezi Analiza';
+                        viewBtn.onclick = (e) => {
+                            e.preventDefault();
+                            viewAnalysis(item.id);
+                        };
+                        
+                        // Butonul de descărcare
+                        const downloadBtn = document.createElement('button');
+                        downloadBtn.className = 'action-btn';
+                        downloadBtn.textContent = 'Descarcă CV Original';
+                        downloadBtn.onclick = (e) => {
+                            e.preventDefault();
+                            downloadFile(item.id, item.filename, token);
+                        };
+
+                        actionsDiv.appendChild(viewBtn); // Adaugă butonul nou
+                        actionsDiv.appendChild(downloadBtn);
+                        li.appendChild(itemInfo);
+                        li.appendChild(actionsDiv);
+                        historyList.appendChild(li);
+                    });
+                }
+            } catch (e) {
+                loadingMsg.textContent = `Eroare: ${e.message}`;
+                loadingMsg.style.color = '#dc3545';
+            }
+        }
+
+        async function viewAnalysis(analysisId) {
+            // Funcție NOUĂ pentru a afișa JSON-ul analizei
+            const displayDiv = document.getElementById('analysis-display');
+            const contentPre = document.getElementById('analysis-json-content');
+            const statusMsg = document.getElementById('status-message');
+            
+            statusMsg.textContent = 'Se încarcă analiza...';
+            statusMsg.style.color = '#007bff';
+            displayDiv.style.display = 'none';
+
+             try {
+                const response = await fetch(`/api/analysis/${analysisId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) { window.location.href = '/static/login.html'; }
+                    throw new Error('Analiza nu a putut fi încărcată.');
+                }
+
+                const analysisJson = await response.json();
+                
+                // Afișează JSON-ul frumos formatat
+                contentPre.textContent = JSON.stringify(analysisJson, null, 2);
+                displayDiv.style.display = 'block';
+                statusMsg.textContent = ''; // Curăță mesajul
+
+            } catch (e) {
+                statusMsg.textContent = `Eroare: ${e.message}`;
+                statusMsg.style.color = '#dc3545';
+            }
+        }
+
+        async function downloadFile(analysisId, filename, token) {
+            const statusMsg = document.getElementById('status-message');
+            statusMsg.textContent = `Se descarcă ${filename}...`;
+            statusMsg.style.color = '#007bff';
+
+            try {
+                const response = await fetch(`/api/download-file/${analysisId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) { throw new Error('Descărcarea a eșuat.'); }
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                statusMsg.textContent = '';
+            } catch (e) {
+                statusMsg.textContent = `Eroare la descărcare: ${e.message}`;
+                statusMsg.style.color = '#dc3545';
+            }
+        }
+    </script>
+</body>
+</html>

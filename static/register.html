@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creează Cont - AI Resume Analyzer</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background-color: #f4f7f6; }
+        .auth-container { background: #ffffff; padding: 40px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.07); width: 350px; text-align: center; }
+        h2 { color: #28a745; margin-bottom: 25px; }
+        input[type="email"], input[type="password"], input[type="text"] { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ced4da; border-radius: 8px; box-sizing: border-box; }
+        button { background-color: #28a745; color: white; padding: 12px; border: none; border-radius: 8px; cursor: pointer; width: 100%; font-size: 16px; font-weight: 600; }
+        button:hover { background-color: #218838; }
+        #message { margin-top: 20px; font-weight: 600; }
+        .links { margin-top: 20px; font-size: 14px; }
+        .links a { color: #007bff; text-decoration: none; }
+        .links a:hover { text-decoration: underline; }
+        .password-wrapper { position: relative; width: 100%; }
+        .password-wrapper input { padding-right: 45px; }
+        .toggle-password { position: absolute; top: 50%; right: 15px; transform: translateY(-50%); cursor: pointer; color: #6c757d; border: none; background: none; padding: 0; margin-top: -7.5px; }
+        .toggle-password svg { width: 20px; height: 20px; }
+        #password-errors { font-size: 13px; color: #dc3545; text-align: left; margin-top: -10px; margin-bottom: 15px; list-style-position: inside; padding-left: 5px; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h2>Creează un Cont Nou</h2>
+        
+        <form id="registerForm">
+            <input type="email" id="email" placeholder="Email" required>
+            <div class="password-wrapper">
+                <input type="password" id="password" placeholder="Parolă" required>
+                <span class="toggle-password" id="togglePassword">
+                    <svg id="eye-open-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <svg id="eye-closed-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;"><path d="M17.9 17.9C16.1 19.4 14.1 20 12 20c-3.2 0-6.1-1.9-9-5 1.1-1.7 2.4-3.1 3.9-4.2M10 12.5a2 2 0 0 1-2-2M14 14l-4-4M10.1 6.1C10.7 6.1 11.3 6 12 6c3.2 0 6.1 1.9 9 5-1.1 1.7-2.4 3.1-3.9 4.2M14 12a2 2 0 0 1-2 2"></path><line x1="2" x2="22" y1="2" y2="22"></line></svg>
+                </span>
+            </div>
+            <ul id="password-errors"></ul>
+            <div class="password-wrapper">
+                <input type="password" id="confirmPassword" placeholder="Confirmă Parola" required>
+                <span class="toggle-password" id="toggleConfirmPassword">
+                    <svg id="eye-open-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <svg id="eye-closed-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;"><path d="M17.9 17.9C16.1 19.4 14.1 20 12 20c-3.2 0-6.1-1.9-9-5 1.1-1.7 2.4-3.1 3.9-4.2M10 12.5a2 2 0 0 1-2-2M14 14l-4-4M10.1 6.1C10.7 6.1 11.3 6 12 6c3.2 0 6.1 1.9 9 5-1.1 1.7-2.4 3.1-3.9 4.2M14 12a2 2 0 0 1-2 2"></path><line x1="2" x2="22" y1="2" y2="22"></line></svg>
+                </span>
+            </div>
+            <button type="submit">Creează Cont</button>
+        </form>
+        <div id="message"></div>
+        <div class="links">
+            <a href="/static/login.html">Ai deja cont? Mergi la Login</a>
+        </div>
+    </div>
+    <script>
+        function setupPasswordToggle(inputId, toggleId, eyeOpenId, eyeClosedId) {
+            const passwordInput = document.getElementById(inputId);
+            const toggleButton = document.getElementById(toggleId);
+            const eyeOpen = document.getElementById(eyeOpenId);
+            const eyeClosed = document.getElementById(eyeClosedId);
+            if (!passwordInput || !toggleButton || !eyeOpen || !eyeClosed) return;
+            toggleButton.addEventListener('click', function() {
+                const isPassword = passwordInput.type === 'password';
+                passwordInput.type = isPassword ? 'text' : 'password';
+                eyeOpen.style.display = isPassword ? 'none' : 'block';
+                eyeClosed.style.display = isPassword ? 'block' : 'none';
+            });
+        }
+        setupPasswordToggle('password', 'togglePassword', 'eye-open-1', 'eye-closed-1');
+        setupPasswordToggle('confirmPassword', 'toggleConfirmPassword', 'eye-open-2', 'eye-closed-2');
+
+        function validatePassword(password) {
+            const errors = [];
+            if (password.length < 6 || password.length > 12) {
+                errors.push("<li>Parola trebuie să aibă între 6 și 12 caractere.</li>");
+            }
+            if (!/[A-Z]/.test(password)) {
+                errors.push("<li>Parola trebuie să conțină cel puțin o literă mare.</li>");
+            }
+            if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+                errors.push("<li>Parola trebuie să conțină cel puțin un caracter special.</li>");
+            }
+            return errors;
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const messageDiv = document.getElementById('message');
+            const passwordErrorsDiv = document.getElementById('password-errors');
+            messageDiv.innerHTML = '';
+            passwordErrorsDiv.innerHTML = '';
+            const passwordErrors = validatePassword(password);
+            if (passwordErrors.length > 0) {
+                passwordErrorsDiv.innerHTML = passwordErrors.join('');
+                messageDiv.innerHTML = "Corectați erorile parolei.";
+                messageDiv.style.color = 'red';
+                return;
+            }
+            if (password !== confirmPassword) {
+                messageDiv.innerHTML = "Parolele nu se potrivesc.";
+                messageDiv.style.color = 'red';
+                return;
+            }
+            messageDiv.innerHTML = 'Se procesează...';
+            messageDiv.style.color = 'blue';
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    messageDiv.innerHTML = `${data.message} Vei fi redirecționat la login...`;
+                    messageDiv.style.color = 'green';
+                    setTimeout(() => {
+                        window.location.href = '/static/login.html';
+                    }, 2000);
+                } else {
+                    messageDiv.innerHTML = data.detail || 'Eroare necunoscută la server.';
+                    messageDiv.style.color = 'red';
+                }
+            } catch (error) {
+                messageDiv.innerHTML = 'Eroare de rețea. Serverul nu răspunde.';
+                messageDiv.style.color = 'red';
+            }
+        });
+    </script>
+</body>
+</html>

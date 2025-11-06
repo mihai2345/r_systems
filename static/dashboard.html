@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Analizor CV</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 20px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07); overflow: hidden; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 20px 30px; border-bottom: 1px solid #eef0f2; }
+        header h1 { font-size: 24px; color: #007bff; margin: 0; }
+        header .header-links a { color: #007bff; text-decoration: none; font-weight: 600; margin-left: 20px; }
+        header .header-links a#logout-link { color: #dc3545; }
+        .content { padding: 30px; }
+        form label { display: block; font-weight: 600; margin-bottom: 8px; color: #333; }
+        input[type="file"], textarea { width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 8px; box-sizing: border-box; margin-bottom: 20px; font-family: inherit; }
+        textarea { min-height: 120px; resize: vertical; }
+        button { background-color: #28a745; color: white; padding: 14px 22px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; transition: background-color 0.2s; }
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #aaa; }
+        
+        /* Zona de Rezultate */
+        #results-container { margin-top: 30px; border-top: 1px solid #eef0f2; padding-top: 30px; display: none; }
+        h2 { font-size: 20px; color: #333; margin-bottom: 15px; }
+        pre { background-color: #f8f9fa; border: 1px solid #eef0f2; border-radius: 8px; padding: 20px; white-space: pre-wrap; word-wrap: break-word; font-family: "Courier New", Courier, monospace; color: #212529; max-height: 400px; overflow-y: auto; }
+        
+        /* Stiluri pentru afișarea analizei AI */
+        .analysis-section { margin-bottom: 20px; }
+        .analysis-section h3 { font-size: 18px; color: #0056b3; border-bottom: 2px solid #007bff; padding-bottom: 5px; margin-bottom: 10px; }
+        .analysis-list { list-style-type: none; padding-left: 0; }
+        .analysis-list li { position: relative; padding-left: 25px; margin-bottom: 8px; color: #333; }
+        .analysis-list li::before {
+            content: '✓'; /* Implicit - Puncte Forte */
+            position: absolute;
+            left: 0;
+            top: 0;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .analysis-list.weaknesses li::before {
+            content: '✗'; /* Puncte Slabe */
+            color: #dc3545;
+        }
+        .analysis-list.suggestions li::before {
+            content: '💡'; /* Sugestii */
+            color: #ffc107;
+        }
+
+        /* Mesaje de status */
+        #status-message { margin-top: 20px; font-weight: 600; padding: 12px; border-radius: 8px; display: none; }
+        .success { background-color: #d4edda; color: #155724; display: block; }
+        .error { background-color: #f8d7da; color: #721c24; display: block; }
+        .loading { background-color: #cce5ff; color: #004085; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Verifică-ți CV-ul</h1>
+            <div class="header-links">
+                <a href="/static/history.html" id="history-link" style="display: none;">Istoric</a>
+                <a href="#" id="logout-link">Deconectează-te</a>
+            </div>
+        </header>
+
+        <div class="content">
+            <form id="uploadForm">
+                <label for="resumeFile">Încărcați CV-ul (PDF sau DOCX):</label>
+                <input type="file" id="resumeFile" name="resumeFile" accept=".pdf,.docx" required>
+
+                <label for="jobDescription">Descrierea Jobului (Opțional):</label>
+                <textarea id="jobDescription" name="jobDescription" rows="5" placeholder="Lipiți aici textul descrierii jobului..."></textarea>
+
+                <button type="submit" id="submitBtn">Trimite și Analizează (cu AI)</button>
+            </form>
+
+            <div id="status-message"></div>
+
+            <div id="results-container">
+                <h2>Rezultatul Analizei AI:</h2>
+                <div id="ai-results-json">
+                    <!-- Conținutul JSON structurat va fi adăugat aici -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                // Dacă nu există token, redirecționează la login
+                window.location.href = '/static/login.html';
+                return;
+            }
+            // Verifică dacă există istoric pentru a afișa butonul
+            checkHistory(token);
+        });
+
+        // --- Logica de Logout ---
+        document.getElementById('logout-link').addEventListener('click', function(event) {
+            event.preventDefault();
+            localStorage.removeItem('access_token');
+            window.location.href = '/static/login.html';
+        });
+
+        // --- Verificare Istoric (pentru buton) ---
+        async function checkHistory(token) {
+            try {
+                const response = await fetch('/api/history', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const historyData = await response.json();
+                    if (historyData.length > 0) {
+                        document.getElementById('history-link').style.display = 'inline';
+                    }
+                }
+            } catch (e) {
+                console.warn("Nu s-a putut verifica istoricul:", e);
+            }
+        }
+
+        // --- Trimitere Formular ---
+        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                window.location.href = '/static/login.html';
+                return;
+            }
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const statusMsg = document.getElementById('status-message');
+            const resultsContainer = document.getElementById('results-container');
+            const aiResultsDiv = document.getElementById('ai-results-json');
+            
+            const resumeFile = document.getElementById('resumeFile').files[0];
+            const jobDescription = document.getElementById('jobDescription').value;
+
+            const formData = new FormData();
+            formData.append('resume_file', resumeFile);
+            formData.append('job_description', jobDescription);
+
+            // Resetează starea
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Se analizează...';
+            statusMsg.className = 'loading';
+            statusMsg.textContent = 'Se parsează fișierul și se apelează API-ul de AI... Vă rugăm așteptați.';
+            resultsContainer.style.display = 'none';
+            aiResultsDiv.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/analyze-resume/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                        // Nu setăm 'Content-Type', browser-ul o va face automat pentru FormData
+                    },
+                    body: formData
+                });
+
+                const data = await response.json(); // Așteptăm răspunsul JSON de la AI
+
+                if (response.ok) {
+                    statusMsg.className = 'success';
+                    statusMsg.textContent = 'Analiza AI a fost finalizată cu succes!';
+                    
+                    // Afișează rezultatele AI
+                    displayAiResults(data);
+                    
+                    // Afișează butonul de istoric (dacă e prima analiză)
+                    document.getElementById('history-link').style.display = 'inline';
+
+                } else {
+                    statusMsg.className = 'error';
+                    statusMsg.textContent = `Eroare: ${data.detail || 'Eroare la procesarea AI.'}`;
+                }
+            } catch (e) {
+                statusMsg.className = 'error';
+                statusMsg.textContent = 'Eroare de conexiune la server. Verificați dacă Uvicorn și API-ul AI rulează.';
+                console.error('Fetch Error:', e);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Trimite și Analizează (cu AI)';
+            }
+        });
+
+        function displayAiResults(analysisData) {
+            const resultsContainer = document.getElementById('results-container');
+            const aiResultsDiv = document.getElementById('ai-results-json');
+            aiResultsDiv.innerHTML = ''; // Curăță rezultatele vechi
+
+            // Verifică dacă 'analysisData' este un obiect
+            if (typeof analysisData === 'object' && analysisData !== null) {
+                // Iterează prin cheile principale (ex: "Rezumat General", "Educație", "Experiență")
+                for (const sectionTitle in analysisData) {
+                    const sectionData = analysisData[sectionTitle];
+                    
+                    const sectionDiv = document.createElement('div');
+                    sectionDiv.className = 'analysis-section';
+                    
+                    // Adaugă titlul secțiunii (ex: "Educație")
+                    const titleEl = document.createElement('h3');
+                    titleEl.textContent = sectionTitle.replace(/_/g, ' '); // Înlocuiește underscore cu spațiu
+                    sectionDiv.appendChild(titleEl);
+
+                    // Verifică dacă datele secțiunii sunt un obiect (așa cum ne așteptăm)
+                    if (typeof sectionData === 'object' && sectionData !== null) {
+                        // Iterează prin sub-categorii (ex: "strengths", "weaknesses", "suggestions")
+                        for (const subCategory in sectionData) {
+                            const items = sectionData[subCategory];
+                            
+                            // Adaugă doar dacă există elemente
+                            if (Array.isArray(items) && items.length > 0) {
+                                const subTitle = document.createElement('h4');
+                                let listClassName = '';
+                                
+                                // Setăm titluri și clase CSS pe baza cheii
+                                if (subCategory.includes('strength')) {
+                                    subTitle.textContent = 'Puncte Forte:';
+                                    listClassName = 'analysis-list strengths';
+                                } else if (subCategory.includes('weakness')) {
+                                    subTitle.textContent = 'Puncte Slabe:';
+                                    listClassName = 'analysis-list weaknesses';
+                                } else if (subCategory.includes('suggestion')) {
+                                    subTitle.textContent = 'Sugestii:';
+                                    listClassName = 'analysis-list suggestions';
+                                } else {
+                                    subTitle.textContent = subCategory + ':';
+                                    listClassName = 'analysis-list';
+                                }
+                                
+                                sectionDiv.appendChild(subTitle);
+                                
+                                const ul = document.createElement('ul');
+                                ul.className = listClassName;
+                                
+                                items.forEach(itemText => {
+                                    const li = document.createElement('li');
+                                    li.textContent = itemText;
+                                    ul.appendChild(li);
+                                });
+                                sectionDiv.appendChild(ul);
+                            }
+                        }
+                    }
+                    aiResultsDiv.appendChild(sectionDiv);
+                }
+            } else {
+                // Fallback dacă AI-ul returnează text simplu
+                aiResultsDiv.innerHTML = '<pre>' + JSON.stringify(analysisData, null, 2) + '</pre>';
+            }
+            
+            resultsContainer.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
